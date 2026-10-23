@@ -1,0 +1,34 @@
+:root {
+  --ink: #17241f; --paper: #e3e8e1; --panel: #f4f6f1; --pine: #2d4b3c; --film: #f0c419; --line: #b9c4b8;
+  font: 16px/1.5 "Avenir Next", "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 1.5rem; }
+#app { max-width: 64rem; margin: 0 auto; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
+h2, h3 { margin: 0; }
+button, select { font: inherit; padding: 0.45rem 0.9rem; border: 2px solid var(--pine); border-radius: 4px; background: var(--panel); color: var(--ink); }
+button { cursor: pointer; font-weight: 600; }
+button.primary, button.tab[aria-pressed="true"] { background: var(--pine); color: var(--panel); }
+button.quiet { border-color: transparent; background: none; text-decoration: underline; padding-inline: 0.4rem; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--film); outline-offset: 2px; }
+.status { margin: 1rem 0; min-height: 1.5em; }
+nav { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+.slots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+.slot { display: flex; gap: 1rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.slot-file { font-size: 3.25rem; font-weight: 900; line-height: 1; letter-spacing: -0.06em; color: var(--pine); min-width: 4.5rem; }
+.slot-body { display: grid; gap: 0.5rem; flex: 1; min-width: 0; }
+.slot-body p { margin: 0; font-size: 0.9rem; }
+.slot-body p::before { content: ""; display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.4rem; border-radius: 50%; background: var(--line); }
+.slot-body p.on::before { background: var(--film); box-shadow: 0 0 0 2px var(--ink); }
+.row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.library { margin-top: 2rem; display: grid; gap: 0.5rem; justify-items: start; }
+.library ul { margin: 0; padding: 0; list-style: none; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem; }
+.grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; cursor: zoom-in; background: var(--line); }
+dialog { padding: 0; border: 0; background: none; max-width: 95vw; max-height: 95vh; }
+dialog::backdrop { background: rgba(23, 36, 31, 0.85); }
+dialog img { max-width: 95vw; max-height: 95vh; display: block; }
+.note { font-size: 0.9rem; margin: 0; }
