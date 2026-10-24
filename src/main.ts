@@ -199,7 +199,7 @@ function render() {
     h("button", { class: "tab", textContent: label, ariaPressed: String(tab === t), onclick: () => { tab = t; render(); } });
   app.replaceChildren(
     h("header", {},
-      h("h1", { textContent: "Camp Snap companion" }),
+      h("h1", { textContent: "campy" }),
       h("button", { class: "primary", textContent: root ? "Reconnect camera" : "Connect camera", disabled: !cam.supported, onclick: connect }),
     ),
     cam.supported
