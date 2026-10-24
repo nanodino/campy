@@ -35,7 +35,32 @@ export async function writeSlot(root: FileSystemDirectoryHandle, id: SlotId, dat
   await w.close();
 }
 
-// Folder layout isn't assumed: scan a few levels deep for JPEGs.
+// Plain-text record of which library filter is on each slot, e.g. "V1.flt = Kodak Gold.flt".
+// Lives on the camera so it travels with the card.
+export const MANIFEST = "filters.txt";
+
+export async function readManifest(root: FileSystemDirectoryHandle): Promise<Partial<Record<SlotId, string>>> {
+  const names: Partial<Record<SlotId, string>> = {};
+  let text = "";
+  try {
+    text = await (await (await root.getFileHandle(MANIFEST)).getFile()).text();
+  } catch {
+    return names;
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^(\S+)\.flt\s*=\s*(.+)$/.exec(line.trim());
+    if (m && slotIds.includes(m[1] as SlotId)) names[m[1] as SlotId] = m[2];
+  }
+  return names;
+}
+
+export async function writeManifest(root: FileSystemDirectoryHandle, names: Partial<Record<SlotId, string>>) {
+  const lines = slotIds.filter((id) => names[id]).map((id) => `${slotFile(id)} = ${names[id]}`);
+  const w = await (await root.getFileHandle(MANIFEST, { create: true })).createWritable();
+  await w.write(lines.join("\n") + "\n");
+  await w.close();
+}
+
 export async function* findPhotos(
   dir: FileSystemDirectoryHandle,
   depth = 3,

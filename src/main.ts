@@ -7,6 +7,7 @@ let root: FileSystemDirectoryHandle | null = null;
 let tab: "filters" | "photos" = "filters";
 let photos: { url: string; name: string }[] = [];
 let onCamera = new Set<SlotId>();
+let slotNames: Partial<Record<SlotId, string>> = {};
 let backedUp = new Set<string>();
 let library: string[] = [];
 let message = "";
@@ -38,6 +39,7 @@ async function loadFilters() {
   library = (await store.keys("library")).sort();
   backedUp = new Set(await store.keys("backups"));
   onCamera = new Set();
+  slotNames = root ? await cam.readManifest(root) : {};
   if (root) for (const id of slotIds) if (await cam.hasSlot(root, id)) onCamera.add(id);
 }
 
@@ -124,6 +126,7 @@ async function assign(slot: SlotId, libName: string) {
     if (current) await store.put("backups", slot, current);
   }
   await cam.writeSlot(root, slot, data);
+  await cam.writeManifest(root, { ...slotNames, [slot]: libName });
   await loadFilters();
   say(`${libName} is now on ${SLOTS[slot]}. Eject the camera before unplugging it.`);
 }
@@ -132,6 +135,7 @@ async function restore(slot: SlotId) {
   const data = await store.get("backups", slot);
   if (!root || !data) return;
   await cam.writeSlot(root, slot, data);
+  await cam.writeManifest(root, { ...slotNames, [slot]: "original" });
   await loadFilters();
   say(`${SLOTS[slot]} is back to the original filter.`);
 }
@@ -149,7 +153,7 @@ function slotCard(id: SlotId) {
     h("span", { class: "slot-file", textContent: id }),
     h("div", { class: "slot-body" },
       h("h3", { textContent: SLOTS[id] }),
-      h("p", { class: onCamera.has(id) ? "on" : "off", textContent: onCamera.has(id) ? `${cam.slotFile(id)} on camera` : `No ${cam.slotFile(id)} on camera` }),
+      h("p", { class: onCamera.has(id) ? "on" : "off", textContent: onCamera.has(id) ? (slotNames[id] ? `${slotNames[id]} on camera` : `${cam.slotFile(id)} on camera`) : `No ${cam.slotFile(id)} on camera` }),
       select,
       h("div", { class: "row" },
         h("button", { textContent: "Write to camera", disabled: !root || !library.length, onclick: () => select.value && assign(id, select.value) }),
