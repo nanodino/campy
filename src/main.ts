@@ -131,13 +131,14 @@ async function assign(slot: SlotId, libName: string) {
   say(`${libName} is now on ${SLOTS[slot]}. Eject the camera before unplugging it.`);
 }
 
+// Removing the slot file lets the camera fall back to its built-in filter.
 async function restore(slot: SlotId) {
-  const data = await store.get("backups", slot);
-  if (!root || !data) return;
-  await cam.writeSlot(root, slot, data);
-  await cam.writeManifest(root, { ...slotNames, [slot]: "original" });
+  if (!root) return;
+  await cam.deleteSlot(root, slot);
+  const { [slot]: _, ...rest } = slotNames;
+  await cam.writeManifest(root, rest);
   await loadFilters();
-  say(`${SLOTS[slot]} is back to the original filter.`);
+  say(`Deleted ${cam.slotFile(slot)} from the camera. Eject the camera before unplugging it.`);
 }
 
 function slotCard(id: SlotId) {
@@ -145,7 +146,7 @@ function slotCard(id: SlotId) {
     "select",
     { ariaLabel: `Library filter for ${SLOTS[id]}` },
     h("option", { value: "", textContent: "Pick a filter" }),
-    ...library.map((n) => h("option", { value: n, textContent: n })),
+    ...library.map((n) => h("option", { value: n, textContent: n, selected: n === slotNames[id] })),
   );
   return h(
     "li",
@@ -153,11 +154,12 @@ function slotCard(id: SlotId) {
     h("span", { class: "slot-file", textContent: id }),
     h("div", { class: "slot-body" },
       h("h3", { textContent: SLOTS[id] }),
-      h("p", { class: onCamera.has(id) ? "on" : "off", textContent: onCamera.has(id) ? (slotNames[id] ? `${slotNames[id]} on camera` : `${cam.slotFile(id)} on camera`) : `No ${cam.slotFile(id)} on camera` }),
+      h("p", { class: "slot-filter", textContent: slotNames[id] ?? "Unknown filter" }),
+      h("p", { class: onCamera.has(id) ? "on" : "off", textContent: onCamera.has(id) ? `${cam.slotFile(id)} on camera` : `No ${cam.slotFile(id)} on camera` }),
       select,
       h("div", { class: "row" },
         h("button", { textContent: "Write to camera", disabled: !root || !library.length, onclick: () => select.value && assign(id, select.value) }),
-        h("button", { class: "quiet", textContent: "Restore original", hidden: !backedUp.has(id), onclick: () => restore(id) }),
+        h("button", { class: "quiet", textContent: "Restore original", hidden: !onCamera.has(id), onclick: () => restore(id) }),
       ),
     ),
   );

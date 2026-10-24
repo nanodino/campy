@@ -35,6 +35,14 @@ export async function writeSlot(root: FileSystemDirectoryHandle, id: SlotId, dat
   await w.close();
 }
 
+export async function deleteSlot(root: FileSystemDirectoryHandle, id: SlotId) {
+  try {
+    await root.removeEntry(slotFile(id));
+  } catch (e) {
+    if ((e as DOMException).name !== "NotFoundError") throw e;
+  }
+}
+
 // Plain-text record of which library filter is on each slot, e.g. "V1.flt = Kodak Gold.flt".
 // Lives on the camera so it travels with the card.
 export const MANIFEST = "filters.txt";
