@@ -68,7 +68,7 @@ The first time you write to a slot, the app saves a copy of the file that was th
 
 ## Photos
 
-The **Photos** tab shows every JPEG on the camera, newest first. Click a photo to view it full size and click again to close it.
+The **Photos** tab shows every JPEG on the camera, grouped into rolls with the newest roll first. A gap of 4 hours or more between two photos starts a new roll, however many photos are in it, and photos within a roll run oldest to newest. Rolls use each file's modified date, so they're only as accurate as the camera's clock. Click a photo to view it full size and click again to close it.
 
 ## Project layout
 

@@ -3,9 +3,14 @@ import * as cam from "./camera";
 import * as store from "./store";
 import { SLOTS, slotIds, type SlotId } from "./camera";
 
+type Photo = { url: string; name: string; time: number };
+
+const ROLL_GAP = 2 * 60 * 60 * 1000;
+const rollDates = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
 let root: FileSystemDirectoryHandle | null = null;
 let tab: "filters" | "photos" = "filters";
-let photos: { url: string; name: string }[] = [];
+let photos: Photo[] = [];
 let onCamera = new Set<SlotId>();
 let slotNames: Partial<Record<SlotId, string>> = {};
 let backedUp = new Set<string>();
@@ -47,8 +52,18 @@ async function loadPhotos() {
   photos.forEach((p) => URL.revokeObjectURL(p.url));
   const files: File[] = [];
   for await (const fh of cam.findPhotos(root!)) files.push(await fh.getFile());
-  files.sort((a, b) => b.lastModified - a.lastModified);
-  photos = files.map((f) => ({ url: URL.createObjectURL(f), name: f.name }));
+  files.sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  photos = files.map((f) => ({ url: URL.createObjectURL(f), name: f.name, time: f.lastModified }));
+}
+
+function groupRolls(list: Photo[]) {
+  const rolls: Photo[][] = [];
+  for (const p of list) {
+    const roll = rolls.at(-1);
+    if (roll && p.time - roll.at(-1)!.time < ROLL_GAP) roll.push(p);
+    else rolls.push([p]);
+  }
+  return rolls;
 }
 
 async function connect() {
@@ -232,9 +247,17 @@ function filtersView() {
 function photosView() {
   if (!root) return h("p", { class: "empty", textContent: "Connect the camera to see its photos." });
   if (!photos.length) return h("p", { class: "empty", textContent: "No JPEGs found on this drive. Check you picked the camera's root folder." });
-  return h("div", { class: "grid" }, ...photos.map((p) =>
-    h("img", { src: p.url, alt: p.name, loading: "lazy", decoding: "async", onclick: () => { viewer.querySelector("img")!.src = p.url; viewer.showModal(); } }),
-  ));
+  return h("div", {}, ...groupRolls(photos).map(rollView).reverse());
+}
+
+function rollView(roll: Photo[], i: number) {
+  return h("section", { class: "roll" },
+    h("h2", { textContent: `Roll ${i + 1}` }),
+    h("p", { class: "note", textContent: `${rollDates.formatRange(roll[0].time, roll.at(-1)!.time)} · ${roll.length} photo${roll.length === 1 ? "" : "s"}` }),
+    h("div", { class: "grid" }, ...roll.map((p) =>
+      h("img", { src: p.url, alt: p.name, loading: "lazy", decoding: "async", onclick: () => { viewer.querySelector("img")!.src = p.url; viewer.showModal(); } }),
+    )),
+  );
 }
 
 function render() {

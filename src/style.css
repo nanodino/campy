@@ -60,6 +60,8 @@ nav { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
 .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .library { margin-top: 2rem; display: grid; gap: 0.5rem; justify-items: start; }
 .library ul { margin: 0; padding: 0; list-style: none; }
+.roll { margin-bottom: 2rem; }
+.roll .grid { margin-top: 0.5rem; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.5rem; }
 .grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; cursor: zoom-in; background: var(--line); }
 dialog { padding: 0; border: 0; background: none; max-width: 95vw; max-height: 95vh; }
