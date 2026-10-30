@@ -4,6 +4,7 @@ import * as store from "./store";
 import { SLOTS, slotIds, type SlotId } from "./camera";
 
 type Photo = { url: string; name: string; time: number; file: File };
+type Loadout = Partial<Record<SlotId, string>>;
 
 const ROLL_GAP = 2 * 60 * 60 * 1000;
 const rollDates = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -17,6 +18,7 @@ let onCamera = new Set<SlotId>();
 let slotNames: Partial<Record<SlotId, string>> = {};
 let backedUp = new Set<string>();
 let library: string[] = [];
+let loadouts = new Map<string, Loadout>();
 let message = "";
 let persisted = false;
 
@@ -44,6 +46,8 @@ function say(m: string) {
 
 async function loadFilters() {
   library = (await store.keys("library")).sort();
+  loadouts = new Map();
+  for (const name of await store.keys("loadouts")) loadouts.set(name, (await store.get<Loadout>("loadouts", name))!);
   backedUp = new Set(await store.keys("backups"));
   onCamera = new Set();
   slotNames = root ? await cam.readManifest(root) : {};
@@ -157,7 +161,7 @@ async function exportLibrary() {
     const blob = await store.get("library", name);
     if (blob) filters.push({ name, data: await toBase64(blob) });
   }
-  const file = new Blob([JSON.stringify({ version: 1, filters })], { type: "application/json" });
+  const file = new Blob([JSON.stringify({ version: 1, filters, loadouts: Object.fromEntries(loadouts) })], { type: "application/json" });
   const a = h("a", { href: URL.createObjectURL(file), download: `campsnap-library-${new Date().toISOString().slice(0, 10)}.json` });
   a.click();
   URL.revokeObjectURL(a.href);
@@ -174,11 +178,28 @@ async function importLibrary(file: File) {
       await store.put("library", f.name, fromBase64(f.data));
       n++;
     }
+    let m = 0;
+    for (const [name, slots] of Object.entries(parsed.loadouts ?? {})) {
+      const clean = cleanLoadout(slots);
+      if (!Object.keys(clean).length) continue;
+      await store.put("loadouts", name, clean);
+      m++;
+    }
     await loadFilters();
-    say(`Restored ${n} filter${n === 1 ? "" : "s"} from ${file.name}. Filters with the same name were replaced.`);
+    const extra = m ? ` and ${m} loadout${m === 1 ? "" : "s"}` : "";
+    say(`Restored ${n} filter${n === 1 ? "" : "s"}${extra} from ${file.name}. Anything with the same name was replaced.`);
   } catch {
     say("That file isn't a Camp Snap library export. Choose a .json file made by Export library.");
   }
+}
+
+function cleanLoadout(v: unknown) {
+  const slots: Loadout = {};
+  for (const id of slotIds) {
+    const name = (v as Loadout | null)?.[id];
+    if (typeof name === "string") slots[id] = name;
+  }
+  return slots;
 }
 
 async function saveLibraryToCamera() {
@@ -222,18 +243,65 @@ async function loadLibraryFromCamera() {
   else say(`Loaded ${n} filter${n === 1 ? "" : "s"} from the camera. Filters with the same name were replaced.`);
 }
 
+async function writeSlotFilter(camera: FileSystemDirectoryHandle, slot: SlotId, data: Blob) {
+  // Keep the first original only, so "Restore original" always means the factory file.
+  if (!backedUp.has(slot)) {
+    const current = await cam.readSlot(camera, slot);
+    if (current) await store.put("backups", slot, current);
+  }
+  await cam.writeSlot(camera, slot, data);
+}
+
 async function assign(slot: SlotId, libName: string) {
   const data = await store.get("library", libName);
   if (!root || !data) return;
-  // Keep the first original only, so "Restore original" always means the factory file.
-  if (!backedUp.has(slot)) {
-    const current = await cam.readSlot(root, slot);
-    if (current) await store.put("backups", slot, current);
-  }
-  await cam.writeSlot(root, slot, data);
+  await writeSlotFilter(root, slot, data);
   await cam.writeManifest(root, { ...slotNames, [slot]: libName });
   await loadFilters();
   say(`${libName} is now on ${SLOTS[slot]}. Eject the camera before unplugging it.`);
+}
+
+// Reads the slot dropdowns, so a loadout can be planned without touching the camera.
+async function saveLoadout(rawName: string) {
+  const name = rawName.trim();
+  if (!name) return say("Name the loadout first.");
+  const slots: Loadout = {};
+  for (const id of slotIds) {
+    const picked = document.querySelector<HTMLSelectElement>(`select[name="${id}"]`)!.value;
+    if (picked) slots[id] = picked;
+  }
+  const n = Object.keys(slots).length;
+  if (!n) return say("Pick a filter on at least one slot first.");
+  const verb = loadouts.has(name) ? "Replaced" : "Saved";
+  await store.put("loadouts", name, slots);
+  await loadFilters();
+  say(`${verb} ${name} with ${n} filter${n === 1 ? "" : "s"}.`);
+}
+
+// Slots the loadout doesn't mention are left as they are.
+async function applyLoadout(name: string, slots: Loadout) {
+  if (!root) return;
+  say(`Writing ${name} to the camera…`);
+  const names = { ...slotNames };
+  const missed: string[] = [];
+  for (const id of slotIds) {
+    const libName = slots[id];
+    if (!libName) continue;
+    try {
+      const data = await store.get("library", libName);
+      if (!data) throw new Error("missing");
+      await writeSlotFilter(root, id, data);
+      names[id] = libName;
+    } catch {
+      missed.push(`${SLOTS[id]} (${libName})`);
+    }
+  }
+  await cam.writeManifest(root, names).catch(() => missed.push(cam.MANIFEST));
+  await loadFilters();
+  say(
+    (missed.length ? `${name} is only partly on the camera. Couldn't write: ${missed.join(", ")}.` : `${name} is on the camera.`) +
+      " Eject the camera before unplugging it.",
+  );
 }
 
 // Removing the slot file lets the camera fall back to its built-in filter.
@@ -249,7 +317,7 @@ async function restore(slot: SlotId) {
 function slotCard(id: SlotId) {
   const select = h(
     "select",
-    { ariaLabel: `Library filter for ${SLOTS[id]}` },
+    { name: id, ariaLabel: `Library filter for ${SLOTS[id]}` },
     h("option", { value: "", textContent: "Pick a filter" }),
     ...library.map((n) => h("option", { value: n, textContent: n, selected: n === slotNames[id] })),
   );
@@ -270,11 +338,34 @@ function slotCard(id: SlotId) {
   );
 }
 
+function loadoutsView() {
+  const nameInput = h("input", { type: "text", placeholder: "Loadout name", ariaLabel: "Loadout name" });
+  return h("div", { class: "library" },
+    h("h2", { textContent: "Loadouts" }),
+    h("p", { textContent: "Pick filters on the slots above, name the set and save it. Writing a loadout changes only the slots it includes." }),
+    h("form", { class: "row", onsubmit: (e: Event) => { e.preventDefault(); saveLoadout(nameInput.value); } },
+      nameInput,
+      h("button", { textContent: "Save loadout", disabled: !library.length }),
+    ),
+    h("ul", { class: "loadouts" }, ...[...loadouts].map(([name, slots]) =>
+      h("li", {},
+        h("strong", { textContent: name }),
+        h("p", { class: "note", textContent: slotIds.filter((id) => slots[id]).map((id) => `${id}: ${slots[id]!.replace(/\.flt$/i, "")}`).join(" · ") }),
+        h("div", { class: "row" },
+          h("button", { textContent: "Write to camera", disabled: !root, onclick: () => applyLoadout(name, slots) }),
+          h("button", { class: "quiet", textContent: "Remove", onclick: async () => { await store.del("loadouts", name); await loadFilters(); render(); } }),
+        ),
+      ),
+    )),
+  );
+}
+
 function filtersView() {
   const input = h("input", { type: "file", accept: ".flt", multiple: true, hidden: true, onchange: () => input.files && importFilters(input.files) });
   const restoreInput = h("input", { type: "file", accept: ".json,application/json", hidden: true, onchange: () => restoreInput.files?.[0] && importLibrary(restoreInput.files[0]) });
   return h("section", {},
     h("ul", { class: "slots" }, ...slotIds.map(slotCard)),
+    loadoutsView(),
     h("div", { class: "library" },
       h("h2", { textContent: "Your filter library" }),
       h("p", { textContent: "Download .flt files from filters.campsnapphoto.com, then add them here." }),

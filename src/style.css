@@ -8,7 +8,7 @@ body { margin: 0; padding: 1.5rem; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
 h1 { margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
 h2, h3 { margin: 0; }
-button, select { font: inherit; padding: 0.45rem 0.9rem; border: 2px solid var(--pine); border-radius: 4px; background: var(--panel); color: var(--ink); }
+button, select, input { font: inherit; padding: 0.45rem 0.9rem; border: 2px solid var(--pine); border-radius: 4px; background: var(--panel); color: var(--ink); }
 button { cursor: pointer; font-weight: 600; }
 button.primary, button.tab[aria-pressed="true"] { background: var(--pine); color: var(--panel); }
 button.quiet { border-color: transparent; background: none; text-decoration: underline; padding-inline: 0.4rem; }
@@ -60,6 +60,7 @@ nav { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
 .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .library { margin-top: 2rem; display: grid; gap: 0.5rem; justify-items: start; }
 .library ul { margin: 0; padding: 0; list-style: none; }
+.loadouts li { margin-top: 0.75rem; }
 .import { margin-bottom: 1.25rem; }
 .roll { margin-bottom: 2rem; }
 .roll .grid { margin-top: 0.5rem; }

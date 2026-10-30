@@ -38,8 +38,8 @@ Filenames are case-sensitive.
 
 Download `.flt` files from [filters.campsnapphoto.com](https://filters.campsnapphoto.com), then click **Add .flt files** to add them to your library. The library is kept in the browser's storage (IndexedDB), so it's still there next time, but backups are a good idea.
 
-- **Export library** downloads all your filters as one `.json` file.
-- **Import library** loads that file back in. Filters with the same name are replaced.
+- **Export library** downloads all your filters and loadouts as one `.json` file.
+- **Import library** loads that file back in. Filters and loadouts with the same name are replaced.
 - **Save library to camera** copies every filter into a `Filter Library` folder on the card. Filters with the same name are replaced, and filters you've removed from the library stay on the card. The folder is only a copy: slots still use the `.flt` files at the top level.
 - **Load library from camera** adds every `.flt` file in that folder to your library, which is handy on a new computer or after the browser clears its storage. Filters with the same name are replaced, and filters that aren't on the card stay in your library.
 
@@ -50,6 +50,14 @@ On each slot card, pick a filter from your library and click **Write to camera**
 **Restore original** deletes the slot's `.flt` file from the camera, so the camera falls back to its built-in filter for that slot.
 
 Always eject the camera before unplugging it.
+
+### Loadouts
+
+A loadout is a named set of filters, like "Summer" or "Black & white day". Pick filters in the slot dropdowns, type a name and click **Save loadout**. You don't need the camera connected, and saving under an existing name replaces that loadout.
+
+**Write to camera** on a loadout writes its filters to their slots in one go. Slots it doesn't include are left as they are. If one of its filters is no longer in your library, that slot is skipped and the status line says so.
+
+Loadouts are kept in the browser's storage alongside your library. They're included in **Export library**, but not in **Save library to camera**.
 
 ### `filters.txt`
 
@@ -81,6 +89,6 @@ Nothing is overwritten. A photo with the same name and size in the folder is ski
 ## Project layout
 
 - `src/camera.ts`: slot definitions and reading and writing files on the camera, including `filters.txt`.
-- `src/store.ts`: browser storage for the filter library, backups and the record of imported photos.
+- `src/store.ts`: browser storage for the filter library, backups, loadouts and the record of imported photos.
 - `src/main.ts`: the UI.
 - `src/style.css`: styles.
