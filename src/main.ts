@@ -3,7 +3,7 @@ import * as cam from "./camera";
 import * as store from "./store";
 import { SLOTS, slotIds, type SlotId } from "./camera";
 
-type Photo = { url: string; name: string; time: number };
+type Photo = { url: string; name: string; time: number; file: File };
 
 const ROLL_GAP = 2 * 60 * 60 * 1000;
 const rollDates = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -11,6 +11,8 @@ const rollDates = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", time
 let root: FileSystemDirectoryHandle | null = null;
 let tab: "filters" | "photos" = "filters";
 let photos: Photo[] = [];
+let imported = new Set<string>();
+let importing = false;
 let onCamera = new Set<SlotId>();
 let slotNames: Partial<Record<SlotId, string>> = {};
 let backedUp = new Set<string>();
@@ -53,7 +55,8 @@ async function loadPhotos() {
   const files: File[] = [];
   for await (const fh of cam.findPhotos(root!)) files.push(await fh.getFile());
   files.sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name, undefined, { numeric: true }));
-  photos = files.map((f) => ({ url: URL.createObjectURL(f), name: f.name, time: f.lastModified }));
+  photos = files.map((f) => ({ url: URL.createObjectURL(f), name: f.name, time: f.lastModified, file: f }));
+  imported = new Set(await store.keys("imported"));
 }
 
 function groupRolls(list: Photo[]) {
@@ -64,6 +67,52 @@ function groupRolls(list: Photo[]) {
     else rolls.push([p]);
   }
   return rolls;
+}
+
+const photoKey = (p: Photo) => `${p.name}|${p.file.size}|${p.time}`;
+
+// Named after the roll's first photo, not its number: numbers shift as photos leave the card.
+function rollFolder(roll: Photo[]) {
+  const d = new Date(roll[0].time);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60 * 1000);
+  return local.toISOString().slice(0, 16).replace("T", " ").replace(":", ".");
+}
+
+async function importPhotos(list: Photo[]) {
+  if (!root) return;
+  let dest: FileSystemDirectoryHandle;
+  try {
+    dest = await cam.pickImportFolder();
+  } catch {
+    return; // picker cancelled
+  }
+  if (await root.resolve(dest)) return say("That folder is on the camera. Choose one on your computer.");
+  importing = true;
+  const wanted = new Set(list);
+  let copied = 0, skipped = 0, failed = 0;
+  say(`Importing ${list.length} photo${list.length === 1 ? "" : "s"}…`);
+  for (const roll of groupRolls(photos)) {
+    for (const p of roll.filter((p) => wanted.has(p))) {
+      try {
+        const dir = await dest.getDirectoryHandle(rollFolder(roll), { create: true });
+        if (await cam.copyPhoto(dir, p.file)) copied++;
+        else skipped++;
+        await store.put("imported", photoKey(p), Date.now());
+        imported.add(photoKey(p));
+      } catch {
+        failed++;
+      }
+      // Not say(): re-rendering every photo for each file would stall the import.
+      message = `Importing photo ${copied + skipped + failed} of ${list.length}…`;
+      document.querySelector(".status")!.textContent = message;
+    }
+  }
+  importing = false;
+  say(
+    `Imported ${copied} photo${copied === 1 ? "" : "s"} to ${dest.name}.` +
+      (skipped ? ` ${skipped} already there.` : "") +
+      (failed ? ` Couldn't import ${failed}. Check the camera is connected and the folder has space.` : ""),
+  );
 }
 
 async function connect() {
@@ -247,7 +296,18 @@ function filtersView() {
 function photosView() {
   if (!root) return h("p", { class: "empty", textContent: "Connect the camera to see its photos." });
   if (!photos.length) return h("p", { class: "empty", textContent: "No JPEGs found on this drive. Check you picked the camera's root folder." });
-  return h("div", {}, ...groupRolls(photos).map(rollView).reverse());
+  const fresh = photos.filter((p) => !imported.has(photoKey(p)));
+  return h("div", {},
+    h("div", { class: "row import" },
+      h("button", {
+        textContent: fresh.length ? `Import ${fresh.length} new photo${fresh.length === 1 ? "" : "s"}` : "All photos imported",
+        disabled: importing || !fresh.length,
+        onclick: () => importPhotos(fresh),
+      }),
+      h("button", { class: "quiet", textContent: "Import all again", disabled: importing, hidden: fresh.length === photos.length, onclick: () => importPhotos(photos) }),
+    ),
+    ...groupRolls(photos).map(rollView).reverse(),
+  );
 }
 
 function rollView(roll: Photo[], i: number) {

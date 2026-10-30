@@ -70,9 +70,17 @@ The first time you write to a slot, the app saves a copy of the file that was th
 
 The **Photos** tab shows every JPEG on the camera, grouped into rolls with the newest roll first. A gap of 2 hours or more between two photos starts a new roll, however many photos are in it, and photos within a roll run oldest to newest. Rolls use each file's modified date, so they're only as accurate as the camera's clock. Click a photo to view it full size and click again to close it.
 
+### Importing to your computer
+
+**Import new photos** asks for a folder on your computer and copies each new photo into a subfolder for its roll, named after the roll's first photo, like `2026-10-03 10.00`. Photos on the card are left alone.
+
+The browser remembers what you've imported, so those photos are skipped next time, even if you've moved them. That record stays in this browser, so a new computer or cleared storage starts fresh. **Import all again** copies everything, which is useful if you've lost a copy.
+
+Nothing is overwritten. A photo with the same name and size in the folder is skipped, and one with the same name but a different size is saved as `IMG_1 (2).JPG`.
+
 ## Project layout
 
 - `src/camera.ts`: slot definitions and reading and writing files on the camera, including `filters.txt`.
-- `src/store.ts`: browser storage for the filter library and backups.
+- `src/store.ts`: browser storage for the filter library, backups and the record of imported photos.
 - `src/main.ts`: the UI.
 - `src/style.css`: styles.

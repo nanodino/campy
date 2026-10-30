@@ -1,12 +1,13 @@
-// Browser-side storage: "library" = filters you've imported, "backups" = what was on the camera before first overwrite.
-type StoreName = "library" | "backups";
+// Browser-side storage: "library" = filters you've imported, "backups" = what was on the camera before first overwrite,
+// "imported" = photos already copied to the computer.
+const STORES = ["library", "backups", "imported"] as const;
+type StoreName = (typeof STORES)[number];
 
 const open = () =>
   new Promise<IDBDatabase>((res, rej) => {
-    const r = indexedDB.open("campsnap", 1);
+    const r = indexedDB.open("campsnap", 2);
     r.onupgradeneeded = () => {
-      r.result.createObjectStore("library");
-      r.result.createObjectStore("backups");
+      for (const s of STORES) if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s);
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
@@ -21,7 +22,7 @@ async function run<T>(store: StoreName, mode: IDBTransactionMode, fn: (s: IDBObj
   });
 }
 
-export const put = (s: StoreName, key: string, v: Blob) => run(s, "readwrite", (o) => o.put(v, key));
+export const put = (s: StoreName, key: string, v: Blob | number) => run(s, "readwrite", (o) => o.put(v, key));
 export const get = (s: StoreName, key: string) => run<Blob | undefined>(s, "readonly", (o) => o.get(key));
 export const del = (s: StoreName, key: string) => run(s, "readwrite", (o) => o.delete(key));
 export const keys = async (s: StoreName) => (await run(s, "readonly", (o) => o.getAllKeys())) as string[];

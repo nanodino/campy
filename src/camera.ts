@@ -15,6 +15,7 @@ export const slotFile = (id: SlotId) => `${id}.flt`;
 export const supported = "showDirectoryPicker" in window;
 
 export const pickCamera = () => window.showDirectoryPicker({ mode: "readwrite" });
+export const pickImportFolder = () => window.showDirectoryPicker({ id: "campy-import", mode: "readwrite", startIn: "pictures" });
 
 export async function readSlot(root: FileSystemDirectoryHandle, id: SlotId): Promise<File | null> {
   try {
@@ -90,6 +91,24 @@ export async function writeManifest(root: FileSystemDirectoryHandle, names: Part
   const w = await (await root.getFileHandle(MANIFEST, { create: true })).createWritable();
   await w.write(lines.join("\n") + "\n");
   await w.close();
+}
+
+// Copies a photo into dir, never overwriting. Returns false if the same-sized file is already there.
+export async function copyPhoto(dir: FileSystemDirectoryHandle, file: File) {
+  const dot = file.name.lastIndexOf(".");
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? file.name : `${file.name.slice(0, dot)} (${n})${file.name.slice(dot)}`;
+    try {
+      const existing = await (await dir.getFileHandle(name)).getFile();
+      if (existing.size === file.size) return false;
+    } catch (e) {
+      if ((e as DOMException).name !== "NotFoundError") throw e;
+      const w = await (await dir.getFileHandle(name, { create: true })).createWritable();
+      await w.write(file);
+      await w.close();
+      return true;
+    }
+  }
 }
 
 export async function* findPhotos(
