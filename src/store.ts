@@ -1,11 +1,12 @@
 // Browser-side storage: "library" = filters you've imported, "backups" = what was on the camera before first overwrite,
-// "imported" = photos already copied to the computer, "loadouts" = named sets of filters for the slots.
-const STORES = ["library", "backups", "imported", "loadouts"] as const;
+// "imported" = photos already copied to the computer, "loadouts" = named sets of filters for the slots,
+// "favourites" = starred photos, "rollNames" = names given to rolls, keyed by the roll's first photo.
+const STORES = ["library", "backups", "imported", "loadouts", "favourites", "rollNames"] as const;
 type StoreName = (typeof STORES)[number];
 
 const open = () =>
   new Promise<IDBDatabase>((res, rej) => {
-    const r = indexedDB.open("campsnap", 3);
+    const r = indexedDB.open("campsnap", 4);
     r.onupgradeneeded = () => {
       for (const s of STORES) if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s);
     };

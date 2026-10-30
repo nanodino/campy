@@ -76,11 +76,21 @@ The first time you write to a slot, the app saves a copy of the file that was th
 
 ## Photos
 
-The **Photos** tab shows every JPEG on the camera, grouped into rolls with the newest roll first. A gap of 2 hours or more between two photos starts a new roll, however many photos are in it, and photos within a roll run oldest to newest. Rolls use each file's modified date, so they're only as accurate as the camera's clock. Click a photo to view it full size and click again to close it.
+The **Photos** tab shows every JPEG on the camera, grouped into rolls with the newest roll first. A gap of 2 hours or more between two photos starts a new roll, however many photos are in it, and photos within a roll run oldest to newest. Rolls use each file's modified date, so they're only as accurate as the camera's clock. Click a photo to view it full size and click again to close it. The top of the tab shows how many photos are on the card and how much space they use. The browser can't see the card's total size, so it can't show free space.
+
+Click a roll's title to name it. Clear the name to go back to "Roll 3".
+
+Click the star on a photo to make it a favourite. **Show favourites** hides everything else, and **Import favourites** imports just the new ones. Roll names and favourites are kept in this browser, and aren't included in **Export library**.
+
+### Test sheet
+
+To compare your filters, start a new roll and take one photo on each slot in this order: Standard, Vintage 1, Vintage 2, Vintage 3, Analog, Black & White. Click **Test sheet** on the roll to see those photos side by side with their filter names.
+
+The app can't tell which slot took a photo, so it goes by position: the first six photos of the roll, in order. The filter names are what's on the slots now, so view the sheet before changing them.
 
 ### Importing to your computer
 
-**Import new photos** asks for a folder on your computer and copies each new photo into a subfolder for its roll, named after the roll's first photo, like `2026-10-03 10.00`. Photos on the card are left alone.
+**Import new photos** asks for a folder on your computer and copies each new photo into a subfolder for its roll, named after the roll's first photo, like `2026-10-03 10.00`. If you've named the roll, its name is added, like `2026-10-03 10.00 Saturday hike`. Renaming a roll after importing it starts a new folder for later photos. Photos on the card are left alone.
 
 The browser remembers what you've imported, so those photos are skipped next time, even if you've moved them. That record stays in this browser, so a new computer or cleared storage starts fresh. **Import all again** copies everything, which is useful if you've lost a copy.
 
@@ -89,6 +99,6 @@ Nothing is overwritten. A photo with the same name and size in the folder is ski
 ## Project layout
 
 - `src/camera.ts`: slot definitions and reading and writing files on the camera, including `filters.txt`.
-- `src/store.ts`: browser storage for the filter library, backups, loadouts and the record of imported photos.
+- `src/store.ts`: browser storage for the filter library, backups, loadouts, the record of imported photos, favourites and roll names.
 - `src/main.ts`: the UI.
 - `src/style.css`: styles.

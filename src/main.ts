@@ -14,6 +14,10 @@ let tab: "filters" | "photos" = "filters";
 let photos: Photo[] = [];
 let imported = new Set<string>();
 let importing = false;
+let favourites = new Set<string>();
+let favouritesOnly = false;
+let rollNames = new Map<string, string>();
+let sheetRoll: string | null = null;
 let onCamera = new Set<SlotId>();
 let slotNames: Partial<Record<SlotId, string>> = {};
 let backedUp = new Set<string>();
@@ -61,6 +65,9 @@ async function loadPhotos() {
   files.sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name, undefined, { numeric: true }));
   photos = files.map((f) => ({ url: URL.createObjectURL(f), name: f.name, time: f.lastModified, file: f }));
   imported = new Set(await store.keys("imported"));
+  favourites = new Set(await store.keys("favourites"));
+  rollNames = new Map();
+  for (const key of await store.keys("rollNames")) rollNames.set(key, (await store.get<string>("rollNames", key))!);
 }
 
 function groupRolls(list: Photo[]) {
@@ -74,12 +81,37 @@ function groupRolls(list: Photo[]) {
 }
 
 const photoKey = (p: Photo) => `${p.name}|${p.file.size}|${p.time}`;
+const rollKey = (roll: Photo[]) => photoKey(roll[0]);
 
 // Named after the roll's first photo, not its number: numbers shift as photos leave the card.
 function rollFolder(roll: Photo[]) {
   const d = new Date(roll[0].time);
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60 * 1000);
-  return local.toISOString().slice(0, 16).replace("T", " ").replace(":", ".");
+  const stamp = local.toISOString().slice(0, 16).replace("T", " ").replace(":", ".");
+  const name = rollNames.get(rollKey(roll))?.replace(/[\\/:*?"<>|]/g, "-").replace(/[. ]+$/, "");
+  return name ? `${stamp} ${name}` : stamp;
+}
+
+async function renameRoll(roll: Photo[], rawName: string) {
+  const name = rawName.trim();
+  if (name) {
+    rollNames.set(rollKey(roll), name);
+    await store.put("rollNames", rollKey(roll), name);
+  } else {
+    rollNames.delete(rollKey(roll));
+    await store.del("rollNames", rollKey(roll));
+  }
+}
+
+async function toggleFavourite(p: Photo) {
+  const key = photoKey(p);
+  if (favourites.delete(key)) await store.del("favourites", key);
+  else {
+    favourites.add(key);
+    await store.put("favourites", key, Date.now());
+  }
+  if (!favourites.size) favouritesOnly = false;
+  render();
 }
 
 async function importPhotos(list: Photo[]) {
@@ -388,26 +420,60 @@ function photosView() {
   if (!root) return h("p", { class: "empty", textContent: "Connect the camera to see its photos." });
   if (!photos.length) return h("p", { class: "empty", textContent: "No JPEGs found on this drive. Check you picked the camera's root folder." });
   const fresh = photos.filter((p) => !imported.has(photoKey(p)));
+  const freshFavourites = fresh.filter((p) => favourites.has(photoKey(p)));
+  const size = photos.reduce((total, p) => total + p.file.size, 0);
   return h("div", {},
+    h("p", { class: "note summary", textContent: `${photos.length} photo${photos.length === 1 ? "" : "s"} · ${formatSize(size)} on the card` }),
     h("div", { class: "row import" },
       h("button", {
         textContent: fresh.length ? `Import ${fresh.length} new photo${fresh.length === 1 ? "" : "s"}` : "All photos imported",
         disabled: importing || !fresh.length,
         onclick: () => importPhotos(fresh),
       }),
+      h("button", { textContent: `Import ${freshFavourites.length} favourite${freshFavourites.length === 1 ? "" : "s"}`, disabled: importing, hidden: !freshFavourites.length, onclick: () => importPhotos(freshFavourites) }),
+      h("button", { textContent: favouritesOnly ? "Show all photos" : "Show favourites", disabled: !favourites.size, ariaPressed: String(favouritesOnly), onclick: () => { favouritesOnly = !favouritesOnly; render(); } }),
       h("button", { class: "quiet", textContent: "Import all again", disabled: importing, hidden: fresh.length === photos.length, onclick: () => importPhotos(photos) }),
     ),
-    ...groupRolls(photos).map(rollView).reverse(),
+    ...groupRolls(photos).map(rollView).filter((v) => v !== null).reverse(),
+  );
+}
+
+function formatSize(bytes: number) {
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`;
+}
+
+function photoTile(p: Photo) {
+  const starred = favourites.has(photoKey(p));
+  return h("div", { class: "photo" },
+    h("img", { src: p.url, alt: p.name, loading: "lazy", decoding: "async", onclick: () => { viewer.querySelector("img")!.src = p.url; viewer.showModal(); } }),
+    h("button", { class: "star", textContent: starred ? "★" : "☆", ariaLabel: `Favourite ${p.name}`, ariaPressed: String(starred), onclick: () => toggleFavourite(p) }),
+  );
+}
+
+// Assumes one photo per slot, shot in slot order. The names are what's on the slots now, not when the photos were taken.
+function sheetView(roll: Photo[]) {
+  return h("div", {},
+    h("p", { class: "note", textContent: "Shoot one photo on each slot, in this order, as the first photos of a roll. Filter names show what's on the slots now." }),
+    h("div", { class: "sheet" }, ...roll.slice(0, slotIds.length).map((p, n) => {
+      const id = slotIds[n];
+      const filter = slotNames[id] ?? (onCamera.has(id) ? "Unknown filter" : "Built-in filter");
+      return h("figure", {}, photoTile(p), h("figcaption", {}, h("strong", { textContent: SLOTS[id] }), ` ${filter}`));
+    })),
   );
 }
 
 function rollView(roll: Photo[], i: number) {
+  const shown = favouritesOnly ? roll.filter((p) => favourites.has(photoKey(p))) : roll;
+  if (!shown.length) return null;
+  const key = rollKey(roll);
+  const nameInput = h("input", { class: "roll-name", value: rollNames.get(key) ?? "", placeholder: `Roll ${i + 1}`, ariaLabel: `Name for roll ${i + 1}`, onchange: () => renameRoll(roll, nameInput.value) });
   return h("section", { class: "roll" },
-    h("h2", { textContent: `Roll ${i + 1}` }),
+    h("div", { class: "roll-head" },
+      h("h2", {}, nameInput),
+      h("button", { class: "quiet", textContent: sheetRoll === key ? "Back to photos" : "Test sheet", hidden: roll.length < 2, onclick: () => { sheetRoll = sheetRoll === key ? null : key; render(); } }),
+    ),
     h("p", { class: "note", textContent: `${rollDates.formatRange(roll[0].time, roll.at(-1)!.time)} · ${roll.length} photo${roll.length === 1 ? "" : "s"}` }),
-    h("div", { class: "grid" }, ...roll.map((p) =>
-      h("img", { src: p.url, alt: p.name, loading: "lazy", decoding: "async", onclick: () => { viewer.querySelector("img")!.src = p.url; viewer.showModal(); } }),
-    )),
+    sheetRoll === key ? sheetView(roll) : h("div", { class: "grid" }, ...shown.map(photoTile)),
   );
 }
 
