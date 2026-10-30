@@ -43,6 +43,29 @@ export async function deleteSlot(root: FileSystemDirectoryHandle, id: SlotId) {
   }
 }
 
+export const LIBRARY_DIR = "Filter Library";
+
+export async function writeLibraryFilter(root: FileSystemDirectoryHandle, name: string, data: Blob) {
+  const dir = await root.getDirectoryHandle(LIBRARY_DIR, { create: true });
+  const w = await (await dir.getFileHandle(name, { create: true })).createWritable();
+  await w.write(data);
+  await w.close();
+}
+
+export async function* readLibraryFilters(root: FileSystemDirectoryHandle): AsyncGenerator<File> {
+  let dir: FileSystemDirectoryHandle;
+  try {
+    dir = await root.getDirectoryHandle(LIBRARY_DIR);
+  } catch (e) {
+    if ((e as DOMException).name === "NotFoundError") return;
+    throw e;
+  }
+  for await (const [name, handle] of dir.entries()) {
+    if (handle.kind === "file" && !name.startsWith(".") && /\.flt$/i.test(name))
+      yield (handle as FileSystemFileHandle).getFile();
+  }
+}
+
 // Plain-text record of which library filter is on each slot, e.g. "V1.flt = Kodak Gold.flt".
 // Lives on the camera so it travels with the card.
 export const MANIFEST = "filters.txt";

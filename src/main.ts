@@ -117,6 +117,47 @@ async function importLibrary(file: File) {
   }
 }
 
+async function saveLibraryToCamera() {
+  if (!root) return;
+  say(`Saving ${library.length} filter${library.length === 1 ? "" : "s"} to the camera…`);
+  const failed: string[] = [];
+  for (const name of library) {
+    const data = await store.get("library", name);
+    try {
+      if (!data) throw new Error("missing");
+      await cam.writeLibraryFilter(root, name, data);
+    } catch {
+      failed.push(name);
+    }
+  }
+  const saved = library.length - failed.length;
+  say(
+    failed.length
+      ? `Saved ${saved} of ${library.length} filters to ${cam.LIBRARY_DIR}. Couldn't save: ${failed.join(", ")}. Eject the camera before unplugging it.`
+      : `Saved ${saved} filter${saved === 1 ? "" : "s"} to ${cam.LIBRARY_DIR} on the camera. Eject the camera before unplugging it.`,
+  );
+}
+
+async function loadLibraryFromCamera() {
+  if (!root) return;
+  say("Loading filters from the camera…");
+  let n = 0;
+  let failed = false;
+  try {
+    for await (const f of cam.readLibraryFilters(root)) {
+      await store.put("library", f.name, f);
+      n++;
+    }
+  } catch {
+    failed = true;
+  }
+  await checkPersist();
+  await loadFilters();
+  if (failed) say(`Couldn't finish reading ${cam.LIBRARY_DIR}. Loaded ${n} filter${n === 1 ? "" : "s"} before it stopped. Check the camera is connected.`);
+  else if (!n) say(`No filters found in ${cam.LIBRARY_DIR} on the camera.`);
+  else say(`Loaded ${n} filter${n === 1 ? "" : "s"} from the camera. Filters with the same name were replaced.`);
+}
+
 async function assign(slot: SlotId, libName: string) {
   const data = await store.get("library", libName);
   if (!root || !data) return;
@@ -177,6 +218,8 @@ function filtersView() {
         h("button", { textContent: "Add .flt files", onclick: () => input.click() }),
         h("button", { textContent: "Export library", disabled: !library.length, onclick: exportLibrary }),
         h("button", { textContent: "Import library", onclick: () => restoreInput.click() }),
+        h("button", { textContent: "Save library to camera", disabled: !root || !library.length, onclick: saveLibraryToCamera }),
+        h("button", { textContent: "Load library from camera", disabled: !root, onclick: loadLibraryFromCamera }),
       ),
       input,
       restoreInput,

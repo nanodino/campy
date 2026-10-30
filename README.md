@@ -40,6 +40,8 @@ Download `.flt` files from [filters.campsnapphoto.com](https://filters.campsnapp
 
 - **Export library** downloads all your filters as one `.json` file.
 - **Import library** loads that file back in. Filters with the same name are replaced.
+- **Save library to camera** copies every filter into a `Filter Library` folder on the card. Filters with the same name are replaced, and filters you've removed from the library stay on the card. The folder is only a copy: slots still use the `.flt` files at the top level.
+- **Load library from camera** adds every `.flt` file in that folder to your library, which is handy on a new computer or after the browser clears its storage. Filters with the same name are replaced, and filters that aren't on the card stay in your library.
 
 ### Putting filters on the camera
 
